@@ -42,6 +42,14 @@ func NewCopy(cxt context.Context) *SiteCopy {
 
 	client := request.NewClient()
 
+	client.Header(map[string]string{
+		"Accept":             "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
+		"Accept-Encoding":    "gzip, deflate, br",
+		"Accept-Language":    "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+		"sec-ch-ua-platform": "\"Windows\"",
+		"User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36 Edg/102.0.1245.33",
+	})
+
 	c, cancel := context.WithCancel(cxt)
 
 	s := &SiteCopy{

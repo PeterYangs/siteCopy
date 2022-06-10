@@ -2,6 +2,7 @@ package siteCopy
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"fmt"
 	"github.com/PeterYangs/request/v2"
@@ -116,16 +117,14 @@ func (sy *SiteCopy) do(link string, name string) error {
 
 	defer sy.wait.Done()
 
-	rsp, err := sy.client.R().Get(link)
+	ct, err := sy.client.R().GetToContent(link)
 
 	if err != nil {
 
 		return err
 	}
 
-	defer rsp.GetResponse().Body.Close()
-
-	err = sy.WriteZip(name, rsp.GetResponse().Body)
+	err = sy.WriteZip(name, ct.ToByte())
 
 	if err != nil {
 
@@ -138,7 +137,7 @@ func (sy *SiteCopy) do(link string, name string) error {
 
 }
 
-func (sy *SiteCopy) WriteZip(name string, body io.Reader) error {
+func (sy *SiteCopy) WriteZip(name string, content []byte) error {
 
 	sy.lock.Lock()
 
@@ -151,7 +150,7 @@ func (sy *SiteCopy) WriteZip(name string, body io.Reader) error {
 		return err
 	}
 
-	_, err = io.Copy(w, body)
+	_, err = io.Copy(w, bytes.NewReader(content))
 
 	if err != nil {
 
@@ -256,6 +255,8 @@ func (sy *SiteCopy) Zip(name string) error {
 
 			if ok {
 
+				//sss, _ := link.GetCompleteLink(sl.u, v)
+
 				filename := sl.SiteCopy.push(sl.getLink(v), CSS)
 
 				selection.SetAttr("href", filename)
@@ -270,6 +271,8 @@ func (sy *SiteCopy) Zip(name string) error {
 
 			if ok && v != "" {
 
+				//sss, _ := link.GetCompleteLink(sl.u, v)
+
 				filename := sl.SiteCopy.push(sl.getLink(v), JS)
 
 				selection.SetAttr("src", filename)
@@ -283,6 +286,10 @@ func (sy *SiteCopy) Zip(name string) error {
 			v, ok := selection.Attr("src")
 
 			if ok && v != "" {
+
+				//sss, _ := link.GetCompleteLink(sl.u, v)
+
+				//fmt.Println(sss)
 
 				filename := sl.SiteCopy.push(sl.getLink(v), IMAGE)
 
@@ -312,7 +319,7 @@ func (sy *SiteCopy) Zip(name string) error {
 			return hErr
 		}
 
-		err = sy.WriteZip(sl.name, strings.NewReader(html))
+		err = sy.WriteZip(sl.name, []byte(html))
 
 		if err != nil {
 
@@ -377,6 +384,8 @@ func (sl *SiteUrl) getLink(href string) string {
 
 // DealCoding 解决编码问题
 func (sl *SiteUrl) dealCoding(html string, header http.Header) (string, error) {
+
+	//return html, nil
 
 	headerContentType_ := header["Content-Type"]
 

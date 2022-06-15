@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"github.com/PeterYangs/request/v2"
 	"github.com/PeterYangs/tools"
+	"github.com/PeterYangs/tools/link"
+	links "github.com/PeterYangs/tools/link"
 	"github.com/PuerkitoBio/goquery"
 	"github.com/spf13/cast"
 	"io"
@@ -26,17 +28,39 @@ const (
 	IMAGE FileType = 2
 )
 
+func (f FileType) String() string {
+
+	switch f {
+
+	case CSS:
+
+		return "css"
+
+	case JS:
+
+		return "js"
+
+	case IMAGE:
+
+		return "image"
+
+	}
+
+	return ""
+}
+
 type SiteCopy struct {
-	client       *request.Client
-	downloadChan chan []string
-	wait         sync.WaitGroup
-	fileCollect  sync.Map
-	lock         sync.Mutex
-	fileIndex    int
-	SiteUrlList  []*SiteUrl
-	zipWriter    *zip.Writer
-	cxt          context.Context
-	cancel       context.CancelFunc
+	client             *request.Client
+	downloadChan       chan []string
+	downloadChanBackup chan []string
+	wait               sync.WaitGroup
+	fileCollect        sync.Map
+	lock               sync.Mutex
+	fileIndex          int
+	SiteUrlList        []*SiteUrl
+	zipWriter          *zip.Writer
+	cxt                context.Context
+	cancel             context.CancelFunc
 }
 
 func NewCopy(cxt context.Context) *SiteCopy {
@@ -54,13 +78,14 @@ func NewCopy(cxt context.Context) *SiteCopy {
 	c, cancel := context.WithCancel(cxt)
 
 	s := &SiteCopy{
-		client:       client,
-		downloadChan: make(chan []string, 10),
-		wait:         sync.WaitGroup{},
-		fileCollect:  sync.Map{},
-		lock:         sync.Mutex{},
-		cxt:          c,
-		cancel:       cancel,
+		client:             client,
+		downloadChan:       make(chan []string, 10),
+		downloadChanBackup: make(chan []string, 1),
+		wait:               sync.WaitGroup{},
+		fileCollect:        sync.Map{},
+		lock:               sync.Mutex{},
+		cxt:                c,
+		cancel:             cancel,
 	}
 
 	for i := 0; i < 10; i++ {
@@ -96,7 +121,16 @@ func (sy *SiteCopy) downloadWork() {
 
 		case s := <-sy.downloadChan:
 
-			err := sy.do(s[0], s[1])
+			err := sy.do(s[0], s[1], s[2])
+
+			if err != nil {
+
+				fmt.Println(err)
+			}
+
+		case s := <-sy.downloadChanBackup:
+
+			err := sy.do(s[0], s[1], s[2])
 
 			if err != nil {
 
@@ -109,7 +143,7 @@ func (sy *SiteCopy) downloadWork() {
 
 }
 
-func (sy *SiteCopy) do(link string, name string) error {
+func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 	//return nil
 
@@ -124,7 +158,87 @@ func (sy *SiteCopy) do(link string, name string) error {
 		return err
 	}
 
-	err = sy.WriteZip(name, ct.ToByte())
+	data := ct.ToString()
+
+	if fileType == "css" {
+
+		s := regexp.MustCompile(`url\((.*?)\)`).FindAllStringSubmatch(data, -1)
+
+		if len(s) > 1 {
+
+			cssImageArr := make(map[string]string)
+
+			for _, i2 := range s[1:] {
+
+				//fmt.Println(i2, "--------")
+
+				cssImage, err := links.GetCompleteLink(link, i2[1])
+
+				if err != nil {
+
+					continue
+				}
+
+				cssImageArr[cssImage] = i2[1]
+
+			}
+
+			for downloadLink, ss := range cssImageArr {
+
+				//fmt.Println(ss)
+
+				sy.fileIndex++
+
+				filename := "image/img" + cast.ToString(sy.fileIndex) + ".png"
+
+				c, dErr := sy.client.R().GetToContent(downloadLink)
+
+				if dErr != nil {
+
+					fmt.Println(dErr)
+
+					continue
+				}
+
+				data = strings.Replace(data, ss, "../"+filename, -1)
+
+				sy.lock.Lock()
+				w, ee := sy.zipWriter.Create(filename)
+
+				if ee != nil {
+
+					fmt.Println(ee)
+
+					sy.lock.Unlock()
+
+					continue
+				}
+
+				_, ee = io.Copy(w, bytes.NewReader(c.ToByte()))
+
+				sy.lock.Unlock()
+
+				//lockLink := sy.push(downloadLink, IMAGE, true)
+				//
+				////fmt.Println(realLink, lockLink, data)
+				//
+				////panic("")
+				//
+				//data = strings.Replace(data, realLink, lockLink, -1)
+				//
+				////fmt.Println(realLink, data)
+				//
+				//file.Write("1.txt", []byte(realLink+data))
+				//
+				//panic("")
+
+			}
+
+		}
+
+	}
+
+	err = sy.WriteZip(name, []byte(data))
 
 	if err != nil {
 
@@ -160,7 +274,7 @@ func (sy *SiteCopy) WriteZip(name string, content []byte) error {
 	return nil
 }
 
-func (sy *SiteCopy) push(u string, fileType FileType) string {
+func (sy *SiteCopy) push(u string, fileType FileType, isBackup bool) string {
 
 	select {
 	case <-sy.cxt.Done():
@@ -198,9 +312,16 @@ func (sy *SiteCopy) push(u string, fileType FileType) string {
 
 	}
 
-	arr := []string{u, filename}
+	arr := []string{u, filename, fileType.String()}
 
-	sy.downloadChan <- arr
+	if isBackup {
+
+		sy.downloadChanBackup <- arr
+
+	} else {
+
+		sy.downloadChan <- arr
+	}
 
 	return filename
 
@@ -255,9 +376,9 @@ func (sy *SiteCopy) Zip(name string) error {
 
 			if ok {
 
-				//sss, _ := link.GetCompleteLink(sl.u, v)
+				sss, _ := link.GetCompleteLink(sl.u, v)
 
-				filename := sl.SiteCopy.push(sl.getLink(v), CSS)
+				filename := sl.SiteCopy.push(sss, CSS, false)
 
 				selection.SetAttr("href", filename)
 
@@ -271,9 +392,9 @@ func (sy *SiteCopy) Zip(name string) error {
 
 			if ok && v != "" {
 
-				//sss, _ := link.GetCompleteLink(sl.u, v)
+				sss, _ := link.GetCompleteLink(sl.u, v)
 
-				filename := sl.SiteCopy.push(sl.getLink(v), JS)
+				filename := sl.SiteCopy.push(sss, JS, false)
 
 				selection.SetAttr("src", filename)
 
@@ -287,11 +408,9 @@ func (sy *SiteCopy) Zip(name string) error {
 
 			if ok && v != "" {
 
-				//sss, _ := link.GetCompleteLink(sl.u, v)
+				sss, _ := link.GetCompleteLink(sl.u, v)
 
-				//fmt.Println(sss)
-
-				filename := sl.SiteCopy.push(sl.getLink(v), IMAGE)
+				filename := sl.SiteCopy.push(sss, IMAGE, false)
 
 				selection.SetAttr("src", filename)
 

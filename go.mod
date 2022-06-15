@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/PeterYangs/request/v2 v2.0.8
-	github.com/PeterYangs/tools v0.2.42
+	github.com/PeterYangs/tools v0.2.43
 	github.com/PuerkitoBio/goquery v1.8.0
 	github.com/spf13/cast v1.5.0
 )

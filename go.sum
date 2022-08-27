@@ -1,8 +1,8 @@
 github.com/PeterYangs/request/v2 v2.0.8 h1:RGYcVv1cZKN5aGpPQO35Bdknk8MEscSU6YIxr1vbAXQ=
 github.com/PeterYangs/request/v2 v2.0.8/go.mod h1:DMKSbpfCMXodIXJ/QdwJxk2Lu9sZxk9JcxE8MU/7AZ8=
 github.com/PeterYangs/tools v0.2.35/go.mod h1:VMrlLNpXOuQBkHmZjH7HPMUFMd9JyvT/amjxICvlOfQ=
-github.com/PeterYangs/tools v0.2.43 h1:FwGyaivg3FBERSsnIlYaUDi0wqIrrUSVDvFzrScZLg4=
-github.com/PeterYangs/tools v0.2.43/go.mod h1:DyUXMnXUCN5PUgroBmKnbr11ZC8kYqY60WdnOoMnc+o=
+github.com/PeterYangs/tools v0.2.47 h1:ou3X8niFRjRHVxwlLNKsvBz57YVCTkUjhOe7JG5EJUI=
+github.com/PeterYangs/tools v0.2.47/go.mod h1:DyUXMnXUCN5PUgroBmKnbr11ZC8kYqY60WdnOoMnc+o=
 github.com/PuerkitoBio/goquery v1.8.0 h1:PJTF7AmFCFKk1N6V6jmKfrNH9tV5pNE6lZMkG0gta/U=
 github.com/PuerkitoBio/goquery v1.8.0/go.mod h1:ypIiRMtY7COPGk+I/YbZLbxsxn9g5ejnI2HSMtkjZvI=
 github.com/andybalholm/brotli v1.0.4 h1:V7DdXeJtZscaqfNuAdSRuRFzuiKlHSC/Zh3zl9qY3JY=

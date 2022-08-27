@@ -15,9 +15,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 )
 
 type FileType int
@@ -61,6 +63,7 @@ type SiteCopy struct {
 	zipWriter          *zip.Writer
 	cxt                context.Context
 	cancel             context.CancelFunc
+	delay              time.Duration
 }
 
 func NewCopy(cxt context.Context) *SiteCopy {
@@ -74,6 +77,8 @@ func NewCopy(cxt context.Context) *SiteCopy {
 		"sec-ch-ua-platform": "\"Windows\"",
 		"User-Agent":         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.5005.63 Safari/537.36 Edg/102.0.1245.33",
 	})
+
+	//client.
 
 	c, cancel := context.WithCancel(cxt)
 
@@ -94,6 +99,13 @@ func NewCopy(cxt context.Context) *SiteCopy {
 	}
 
 	return s
+}
+
+func (sy *SiteCopy) Proxy(url string) *SiteCopy {
+
+	sy.client.Proxy(url)
+
+	return sy
 }
 
 func (sy *SiteCopy) Url(u string, name string) *SiteUrl {
@@ -147,6 +159,13 @@ func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 	//return nil
 
+	//time.Sleep(300 * time.Millisecond)
+
+	if sy.delay != 0 {
+
+		time.Sleep(sy.delay)
+	}
+
 	sy.wait.Add(1)
 
 	defer sy.wait.Done()
@@ -164,15 +183,21 @@ func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 		s := regexp.MustCompile(`url\((.*?)\)`).FindAllStringSubmatch(data, -1)
 
+		//s := regexp.MustCompile(`url("../image/headerBg@2x.png")`).FindAllStringSubmatch(data, -1)
+
 		if len(s) > 1 {
 
 			cssImageArr := make(map[string]string)
 
-			for _, i2 := range s[1:] {
+			for _, i2 := range s {
 
-				//fmt.Println(i2, "--------")
+				//fmt.Println(i2[1], "--------")
 
-				cssImage, err := links.GetCompleteLink(link, i2[1])
+				fPath := strings.Replace(strings.Replace(i2[1], `"`, "", -1), `'`, "", -1)
+
+				//fmt.Println(fPath)
+
+				cssImage, err := links.GetCompleteLink(link, fPath)
 
 				if err != nil {
 
@@ -189,7 +214,30 @@ func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 				sy.fileIndex++
 
-				filename := "image/img" + cast.ToString(sy.fileIndex) + ".png"
+				filename := ""
+
+				switch sy.removeQuery(filepath.Ext(downloadLink)) {
+
+				case ".woff2":
+
+					filename = "font/woff2" + cast.ToString(sy.fileIndex) + ".woff2"
+
+				case ".ttf":
+
+					filename = "font/ttf" + cast.ToString(sy.fileIndex) + ".ttf"
+
+				case ".eot":
+
+					filename = "font/eot" + cast.ToString(sy.fileIndex) + ".eot"
+
+				case "svg":
+
+					filename = "font/svg" + cast.ToString(sy.fileIndex) + ".svg"
+
+				default:
+
+					filename = "image/img" + cast.ToString(sy.fileIndex) + ".png"
+				}
 
 				c, dErr := sy.client.R().GetToContent(downloadLink)
 
@@ -218,20 +266,6 @@ func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 				sy.lock.Unlock()
 
-				//lockLink := sy.push(downloadLink, IMAGE, true)
-				//
-				////fmt.Println(realLink, lockLink, data)
-				//
-				////panic("")
-				//
-				//data = strings.Replace(data, realLink, lockLink, -1)
-				//
-				////fmt.Println(realLink, data)
-				//
-				//file.Write("1.txt", []byte(realLink+data))
-				//
-				//panic("")
-
 			}
 
 		}
@@ -249,6 +283,20 @@ func (sy *SiteCopy) do(link string, name string, fileType string) error {
 
 	return nil
 
+}
+
+func (sy *SiteCopy) removeQuery(link string) string {
+
+	re1 := regexp.MustCompile(`(\?.*?)$`).FindStringSubmatch(link)
+
+	if len(re1) > 0 {
+
+		//return re1[1]
+
+		return strings.Replace(link, re1[1], "", 1)
+	}
+
+	return link
 }
 
 func (sy *SiteCopy) WriteZip(name string, content []byte) error {
@@ -324,6 +372,15 @@ func (sy *SiteCopy) push(u string, fileType FileType, isBackup bool) string {
 	}
 
 	return filename
+
+}
+
+// Delay 设置请求延迟
+func (sy *SiteCopy) Delay(delay time.Duration) *SiteCopy {
+
+	sy.delay = delay
+
+	return sy
 
 }
 
